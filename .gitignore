@@ -1,0 +1,7 @@
+.venv/
+.env
+__pycache__/
+chroma_db/
+outbox/
+eval/results/
+.pytest_cache/
