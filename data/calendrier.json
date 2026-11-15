@@ -1,0 +1,22 @@
+{
+  "algorithmique": {
+    "examen": "05/01/2027, 9h, amphi A",
+    "rattrapage": "13/01/2027, 14h, salle B10"
+  },
+  "bases de données": {
+    "examen": "08/01/2027, 9h, amphi A",
+    "rattrapage": "15/01/2027, 9h, salle B12"
+  },
+  "réseaux": {
+    "examen": "11/01/2027, 9h, amphi B",
+    "rattrapage": "18/01/2027, 9h, salle B14"
+  },
+  "anglais": {
+    "examen": "12/01/2027, 14h, salle B11",
+    "rattrapage": "19/01/2027, 10h, salle B11"
+  },
+  "projet de fin de module": {
+    "examen": "Remise le 20/01/2027",
+    "rattrapage": "Pas de rattrapage"
+  }
+}
