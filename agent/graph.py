@@ -85,12 +85,20 @@ def noeud_guard(state: AgentState):
 
 def noeud_router(state: AgentState):
     messages = state["messages"]
-    # Si l'assistant vient de demander des informations manquantes, on reste impérativement en rédaction
+    dernier_msg_texte = messages[-1].content.lower().strip()
+    
+    # 1. Interception rapide des salutations (ex: "bonjour", "salut", "merci")
+    salutations = ["bonjour", "salut", "bonsoir", "coucou", "hello", "hi", "merci", "ça va"]
+    if any(dernier_msg_texte == mot or dernier_msg_texte.startswith(mot + " ") for mot in salutations) and len(dernier_msg_texte.split()) <= 4:
+        return {"route": "salutation"}
+
+    # 2. Si l'assistant vient de demander des informations manquantes, on reste impérativement en rédaction
     if len(messages) >= 2 and messages[-2].type == "ai":
         avant_dernier = messages[-2].content.lower()
         if any(mot in avant_dernier for mot in ["besoin", "fournir", "nom", "numéro", "date", "module"]):
             return {"route": "redaction"}
 
+    # 3. Routage classique par le LLM pour les autres cas
     dernier_msg = messages[-1].content
     prompt_route = (
         "Classe la demande de l'étudiant en un seul mot parmi : "
@@ -108,6 +116,14 @@ def noeud_router(state: AgentState):
     else:
         route = "hors_sujet"
     return {"route": route}
+
+def noeud_salutation(state: AgentState):
+    reponse = (
+        "Bonjour Emna ! 👋 Comment puis-je vous aider aujourd'hui ?\n\n"
+        "Je peux vous renseigner sur le **règlement des examens**, vérifier le **calendrier** "
+        "ou rédiger votre **demande de rattrapage** (article 8)."
+    )
+    return {"messages": [AIMessage(content=reponse)], "route": "salutation"}
 
 def noeud_hors_sujet(state: AgentState):
     msg = "Je suis uniquement l'assistant de scolarité de l'ISET Charguia. Je ne peux répondre qu'aux questions concernant le règlement, les examens et les demandes de rattrapage."
@@ -139,6 +155,7 @@ builder.add_node("router", noeud_router)
 builder.add_node("hors_sujet", noeud_hors_sujet)
 builder.add_node("agent_reglement", noeud_reglement)
 builder.add_node("agent_redaction", noeud_redaction)
+builder.add_node("salutation", noeud_salutation)
 
 builder.add_edge(START, "guard")
 builder.add_conditional_edges(
@@ -151,12 +168,14 @@ builder.add_conditional_edges(
     {
         "reglement": "agent_reglement",
         "redaction": "agent_redaction",
-        "hors_sujet": "hors_sujet"
+        "hors_sujet": "hors_sujet",
+        "salutation": "salutation"
     }
 )
 builder.add_edge("agent_reglement", END)
 builder.add_edge("agent_redaction", END)
 builder.add_edge("hors_sujet", END)
+builder.add_edge("salutation", END)
 
 memory = MemorySaver()
 app = builder.compile(checkpointer=memory)
