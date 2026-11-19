@@ -20,7 +20,7 @@ def send_demande(destinataire: str, sujet: str, corps: str, confirmed: bool = Fa
         raise PermissionError("Envoi refusé : accord explicite de l'étudiant requis.")
     
     msg = EmailMessage()
-    msg['From'] = "etudiant@isetch.rnu.tn"
+    msg['From'] = "emnahosni67@gmail.com"
     msg['To'] = destinataire
     msg['Subject'] = sujet
     msg.set_content(corps)
