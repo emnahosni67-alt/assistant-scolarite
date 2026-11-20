@@ -5,3 +5,5 @@ chroma_db/
 outbox/
 eval/results/
 .pytest_cache/
+logs/
+*.log
