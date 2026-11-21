@@ -443,7 +443,7 @@ def interroger_agent(question: str) -> tuple[str, list[dict], float]:
 # Barre latérale : historique des conversations
 # ----------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown('<div class="side-titre">🕘 Historique</div>', unsafe_allow_html=True)
+    st.markdown('<div class="side-titre">🕘 Historique des Conversations </div>', unsafe_allow_html=True)
     st.button("➕ Nouvelle conversation", key="btn_reset", on_click=nouvelle_conversation)
 
     conversations = lister_conversations()
