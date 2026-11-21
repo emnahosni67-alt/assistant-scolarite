@@ -20,7 +20,7 @@ import streamlit as st
 from langchain_core.messages import HumanMessage
 
 from agent.graph import app as langgraph_app
-from core.mailer import send_demande
+from core.mailer import send_demande, creer_brouillon_gmail
 
 # ----------------------------------------------------------------------------
 # Constantes
@@ -485,24 +485,34 @@ with col_side:
         placeholder="Demandez une demande de rattrapage dans le chat : elle apparaîtra ici.",
     )
     ok = st.checkbox(
-        "J'ai relu le courrier et j'autorise son enregistrement.",
+        "J'ai relu le courrier et j'autorise sa mise en brouillon dans Gmail.",
         key="autorisation",
     )
 
-    if st.button("Valider et enregistrer dans outbox/", key="btn_valider",
+    if st.button("Valider et créer le brouillon Gmail", key="btn_valider",
                  disabled=not (ok and texte_a_envoyer.strip())):
         try:
-            msg_succes = send_demande(
+            # 1. Copie locale (.eml dans outbox/), toujours faite en premier
+            send_demande(
                 destinataire=destinataire,
                 sujet=sujet_mail,
                 corps=texte_a_envoyer,
                 confirmed=True,
             )
             st.session_state.demande_enregistree = True
-            st.success(msg_succes)
-            st.balloons()
         except Exception as e:  # noqa: BLE001
             st.error(f"L'enregistrement a échoué : {e}")
+        else:
+            # 2. Brouillon Gmail : si cela échoue, la copie locale existe déjà
+            try:
+                msg_succes = creer_brouillon_gmail(destinataire, sujet_mail, texte_a_envoyer)
+                st.success(msg_succes)
+                st.balloons()
+            except Exception as e:  # noqa: BLE001
+                st.warning(
+                    "Le courrier est enregistré dans outbox/, mais le brouillon Gmail "
+                    f"n'a pas pu être créé : {type(e).__name__}: {e}"
+                )
 
     st.download_button(
         "Télécharger le courrier (.txt)",
@@ -540,10 +550,13 @@ if question:
         try:
             with st.spinner("L'assistant cherche dans le règlement et le calendrier..."):
                 reponse_finale, etapes_traces, duree = interroger_agent(question)
-        except Exception as e:  # noqa: BLE001 - modèle éteint, quota, outil MCP en panne...
+        except Exception as e:  # noqa: BLE001 - clé/quota Groq, Ollama éteint, outil MCP en panne...
             reponse_finale = (
-                "Je n'arrive pas à joindre le modèle pour le moment. Vérifiez qu'Ollama est lancé "
-                "(commande `ollama serve`) et que le modèle est téléchargé, puis réessayez."
+                "Je n'arrive pas à joindre le modèle pour le moment. Vérifiez votre connexion "
+                "Internet et la clé Groq (`LLM_API_KEY` dans `.env`), puis réessayez. "
+                "Si vous avez fait beaucoup de requêtes, la limite Groq est peut-être atteinte : "
+                "attendez une minute. Ollama doit aussi rester lancé pour les embeddings "
+                "(`ollama serve`)."
             )
             etapes_traces = [{"type": "route", "titre": "Erreur technique", "detail": f"{type(e).__name__}: {e}"}]
             duree = 0.0
