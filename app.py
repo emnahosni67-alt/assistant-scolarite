@@ -20,6 +20,12 @@ import streamlit as st
 from langchain_core.messages import HumanMessage
 
 from agent.graph import app as langgraph_app
+from core.historique import (
+    charger_conversation,
+    enregistrer_message,
+    lister_conversations,
+    supprimer_conversation,
+)
 from core.mailer import send_demande, creer_brouillon_gmail
 
 # ----------------------------------------------------------------------------
@@ -61,6 +67,14 @@ SUJETS = {
 
 def fr_date(d: date) -> str:
     return f"{JOURS[d.weekday()]} {d.day} {MOIS[d.month - 1]} {d.year}"
+
+
+MOTS_DEMANDE = ["À l'attention", "Je soussigné", "Objet :", "Objet:"]
+
+
+def est_une_demande(texte: str) -> bool:
+    """Vrai si la réponse de l'assistant est un courrier de demande de rattrapage."""
+    return any(k in texte for k in MOTS_DEMANDE)
 
 
 @lru_cache(maxsize=1)
@@ -280,6 +294,33 @@ def nouvelle_conversation() -> None:
     st.session_state.demande_enregistree = False
 
 
+def ouvrir_conversation() -> None:
+    """Recharge une conversation enregistrée (affichage + courrier éventuel)."""
+    thread_id = st.session_state.get("choix_conversation")
+    if not thread_id:
+        return
+    messages = charger_conversation(thread_id)
+    st.session_state.thread_id = thread_id
+    st.session_state.historique = messages
+    st.session_state.demande_enregistree = False
+    st.session_state.derniere_demande = next(
+        (m["texte"] for m in reversed(messages)
+         if m["role"] == "assistant" and est_une_demande(m["texte"])),
+        "",
+    )
+
+
+def supprimer_conversation_choisie() -> None:
+    """Supprime la conversation sélectionnée dans la liste."""
+    thread_id = st.session_state.get("choix_conversation")
+    if not thread_id:
+        return
+    supprimer_conversation(thread_id)
+    st.session_state.pop("choix_conversation", None)
+    if thread_id == st.session_state.thread_id:
+        nouvelle_conversation()
+
+
 # ----------------------------------------------------------------------------
 # Composants HTML
 # ----------------------------------------------------------------------------
@@ -448,6 +489,23 @@ with col_chat:
     with entete_bouton:
         st.button("Nouvelle conversation", key="btn_reset", on_click=nouvelle_conversation)
 
+    conversations = lister_conversations()
+    with st.expander(f"🕘 Conversations précédentes ({len(conversations)})"):
+        if conversations:
+            libelles = {c["thread_id"]: f'{c["date"]} · {c["titre"]}' for c in conversations}
+            st.selectbox(
+                "Choisir une conversation",
+                options=list(libelles),
+                format_func=libelles.get,
+                key="choix_conversation",
+                label_visibility="collapsed",
+            )
+            col_ouvrir, col_suppr = st.columns(2)
+            col_ouvrir.button("Ouvrir", key="btn_ouvrir", on_click=ouvrir_conversation)
+            col_suppr.button("Supprimer", key="btn_supprimer", on_click=supprimer_conversation_choisie)
+        else:
+            st.caption("Aucune conversation enregistrée pour le moment.")
+
     chat_box = st.container(key="chatpanel")
     with chat_box:
         if not st.session_state.historique:
@@ -546,6 +604,7 @@ if question:
     with chat_box:
         st.chat_message("user", avatar=AVATAR_USER).write(question)
         st.session_state.historique.append({"role": "user", "texte": question})
+        enregistrer_message(st.session_state.thread_id, "user", question)
 
         try:
             with st.spinner("L'assistant cherche dans le règlement et le calendrier..."):
@@ -561,7 +620,7 @@ if question:
             etapes_traces = [{"type": "route", "titre": "Erreur technique", "detail": f"{type(e).__name__}: {e}"}]
             duree = 0.0
 
-        if any(k in reponse_finale for k in ["À l'attention", "Je soussigné", "Objet :", "Objet:"]):
+        if est_une_demande(reponse_finale):
             st.session_state.derniere_demande = reponse_finale
             st.session_state.demande_enregistree = False
             demande_detectee = True
@@ -572,6 +631,9 @@ if question:
             if duree:
                 st.caption(f"Réponse en {duree:.1f} s")
 
+        enregistrer_message(
+            st.session_state.thread_id, "assistant", reponse_finale, etapes_traces, duree
+        )
         st.session_state.historique.append({
             "role": "assistant",
             "texte": reponse_finale,

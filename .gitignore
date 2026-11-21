@@ -7,3 +7,5 @@ eval/results/
 .pytest_cache/
 logs/
 *.log
+historique/
+*.db
