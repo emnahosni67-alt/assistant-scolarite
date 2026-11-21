@@ -5,12 +5,20 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
-client = OpenAI(base_url=os.getenv('LLM_BASE_URL'), api_key=os.getenv('LLM_API_KEY'))
+
+# Embeddings : Ollama en local (Groq n'a pas d'endpoint d'embeddings)
+client = OpenAI(
+    base_url=os.getenv('EMBED_BASE_URL', 'http://localhost:11434/v1'),
+    api_key=os.getenv('EMBED_API_KEY', 'ollama'),
+    timeout=120,
+)
 EMB = os.getenv('EMBED_MODEL', 'bge-m3')
+
 
 def embed(textes):
     r = client.embeddings.create(model=EMB, input=textes)
     return [d.embedding for d in r.data]
+
 
 def lire_articles():
     texte = ' '.join(p.extract_text() for p in PdfReader('data/reglement.pdf').pages)
@@ -23,18 +31,19 @@ def lire_articles():
             arts.append({'article': int(g.group(1)), 'texte': ' '.join(m.split())})
     return arts
 
+
 if __name__ == '__main__':
     arts = lire_articles()
     db = chromadb.PersistentClient(path='chroma_db')
-    try: 
+    try:
         db.delete_collection('reglement')
-    except Exception: 
+    except Exception:
         pass
     col = db.create_collection('reglement', metadata={'hnsw:space': 'cosine'})
     col.add(
-        ids=[str(a['article']) for a in arts], 
+        ids=[str(a['article']) for a in arts],
         documents=[a['texte'] for a in arts],
-        metadatas=[{'article': a['article']} for a in arts], 
+        metadatas=[{'article': a['article']} for a in arts],
         embeddings=embed([a['texte'] for a in arts])
     )
     print(f'{len(arts)} articles indexés')
