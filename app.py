@@ -121,7 +121,7 @@ st.set_page_config(
     page_title="Assistant de scolarité • ISET Charguia",
     page_icon=LOGO_PATH or "🎓",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 st.markdown("""
@@ -144,8 +144,10 @@ st.markdown("""
 
 html, body, [class*="css"], .stApp { font-family: 'DM Sans', sans-serif; color: var(--texte); }
 .stApp { background: var(--fond); }
-header[data-testid="stHeader"], [data-testid="stSidebar"], footer { display: none; }
-.block-container { padding-top: 1rem; padding-bottom: 6rem; max-width: 1240px; }
+header[data-testid="stHeader"] { background: transparent; }
+[data-testid="stToolbar"], [data-testid="stDecoration"], footer { display: none; }
+.block-container { padding-top: 2.4rem; padding-bottom: 6rem; padding-left: 2.2rem; padding-right: 2.2rem; max-width: 100%; }
+div[data-testid="stButton"] { width: 100%; }
 h1, h2, h3, .titre { font-family: 'Bricolage Grotesque', sans-serif; }
 
 /* ---------- Barre de navigation ---------- */
@@ -226,7 +228,7 @@ html { scroll-behavior: smooth; }
 
 /* ---------- Panneau de discussion ---------- */
 .st-key-chatpanel {
-    background: #fff; border: 1px solid var(--trait); border-radius: 28px; padding: 1.2rem 1.3rem; min-height: 280px;
+    background: #fff; border: 1px solid var(--trait); border-radius: 28px; padding: 1.2rem 1.3rem; min-height: 460px;
 }
 [data-testid="stChatMessage"] { background: var(--fond); border-radius: 20px; padding: 0.9rem 1rem; border: none; }
 /* Champ de saisie : un seul contour (le conteneur externe n'a plus de bordure) */
@@ -268,6 +270,26 @@ html { scroll-behavior: smooth; }
 .st-key-btn_valider button:disabled { background: #E3E8FA; color: #98A2C3; }
 
 .pied { text-align: center; color: var(--texte-doux); font-size: 0.8rem; margin-top: 1.5rem; }
+
+/* ---------- Barre latérale : historique des conversations ---------- */
+[data-testid="stSidebar"] { background: #fff; border-right: 1px solid var(--trait); }
+[data-testid="stSidebar"] .block-container, [data-testid="stSidebarUserContent"] { padding-top: 1rem; }
+.side-titre { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 1.2rem; color: var(--nuit); margin: 0 0 0.8rem 0; }
+.side-sous-titre { font-size: 0.8rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--texte-doux); margin: 1.1rem 0 0.4rem 0; }
+.side-pied { color: var(--texte-doux); font-size: 0.75rem; margin-top: 1.2rem; line-height: 1.4; }
+
+.st-key-btn_reset button { background: var(--nuit); color: #fff; border: none; width: 100%; padding: 0.65rem 1rem; font-weight: 700; }
+.st-key-btn_reset button:hover { background: var(--ciel); color: #fff; border: none; }
+
+[class*="st-key-conv_"] button, [class*="st-key-convactive_"] button {
+    width: 100%; justify-content: flex-start; text-align: left; white-space: normal; min-height: 0;
+    background: transparent; border: 1px solid transparent; border-radius: 14px;
+    padding: 0.5rem 0.8rem; color: var(--texte); font-size: 0.9rem; font-weight: 500;
+}
+[class*="st-key-conv_"] button:hover { background: var(--fond); color: var(--texte); border-color: var(--trait); }
+[class*="st-key-convactive_"] button { background: #E6ECFF; border-color: var(--trait); font-weight: 700; color: var(--nuit); }
+[class*="st-key-del_"] button { background: transparent; border: none; min-height: 0; padding: 0.3rem; opacity: .55; }
+[class*="st-key-del_"] button:hover { opacity: 1; background: #FFE3EA; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -294,11 +316,8 @@ def nouvelle_conversation() -> None:
     st.session_state.demande_enregistree = False
 
 
-def ouvrir_conversation() -> None:
+def ouvrir_conversation(thread_id: str) -> None:
     """Recharge une conversation enregistrée (affichage + courrier éventuel)."""
-    thread_id = st.session_state.get("choix_conversation")
-    if not thread_id:
-        return
     messages = charger_conversation(thread_id)
     st.session_state.thread_id = thread_id
     st.session_state.historique = messages
@@ -310,13 +329,9 @@ def ouvrir_conversation() -> None:
     )
 
 
-def supprimer_conversation_choisie() -> None:
-    """Supprime la conversation sélectionnée dans la liste."""
-    thread_id = st.session_state.get("choix_conversation")
-    if not thread_id:
-        return
+def supprimer_conversation_choisie(thread_id: str) -> None:
+    """Supprime une conversation de la liste (et repart de zéro si c'était la courante)."""
     supprimer_conversation(thread_id)
-    st.session_state.pop("choix_conversation", None)
     if thread_id == st.session_state.thread_id:
         nouvelle_conversation()
 
@@ -425,6 +440,41 @@ def interroger_agent(question: str) -> tuple[str, list[dict], float]:
 
 
 # ----------------------------------------------------------------------------
+# Barre latérale : historique des conversations
+# ----------------------------------------------------------------------------
+with st.sidebar:
+    st.markdown('<div class="side-titre">🕘 Historique</div>', unsafe_allow_html=True)
+    st.button("➕ Nouvelle conversation", key="btn_reset", on_click=nouvelle_conversation)
+
+    conversations = lister_conversations()
+    st.markdown(
+        f'<div class="side-sous-titre">Conversations ({len(conversations)})</div>',
+        unsafe_allow_html=True,
+    )
+    if not conversations:
+        st.caption("Aucune conversation enregistrée pour le moment.")
+    for c in conversations:
+        actif = c["thread_id"] == st.session_state.thread_id
+        col_titre, col_suppr = st.columns([5, 1], vertical_alignment="center")
+        col_titre.button(
+            f'{c["titre"]}  \n:gray[{c["date"]}]',
+            key=f'{"convactive" if actif else "conv"}_{c["thread_id"]}',
+            on_click=ouvrir_conversation,
+            args=(c["thread_id"],),
+        )
+        col_suppr.button(
+            "🗑",
+            key=f'del_{c["thread_id"]}',
+            on_click=supprimer_conversation_choisie,
+            args=(c["thread_id"],),
+            help="Supprimer cette conversation",
+        )
+    st.markdown(
+        '<div class="side-pied">Les conversations sont enregistrées sur cet ordinateur.</div>',
+        unsafe_allow_html=True,
+    )
+
+# ----------------------------------------------------------------------------
 # Navigation + hero
 # ----------------------------------------------------------------------------
 if LOGO_URI:
@@ -480,31 +530,10 @@ st.write("")
 # ----------------------------------------------------------------------------
 # Corps : discussion à gauche, calendrier et demande à droite
 # ----------------------------------------------------------------------------
-col_chat, col_side = st.columns([1.75, 1.05], gap="large")
+col_chat, col_side = st.columns([2.2, 1.1], gap="large")
 
 with col_chat:
-    entete_titre, entete_bouton = st.columns([3, 1.3], vertical_alignment="center")
-    with entete_titre:
-        st.markdown('<div class="section-titre">Discuter avec l\'assistant</div>', unsafe_allow_html=True)
-    with entete_bouton:
-        st.button("Nouvelle conversation", key="btn_reset", on_click=nouvelle_conversation)
-
-    conversations = lister_conversations()
-    with st.expander(f"🕘 Conversations précédentes ({len(conversations)})"):
-        if conversations:
-            libelles = {c["thread_id"]: f'{c["date"]} · {c["titre"]}' for c in conversations}
-            st.selectbox(
-                "Choisir une conversation",
-                options=list(libelles),
-                format_func=libelles.get,
-                key="choix_conversation",
-                label_visibility="collapsed",
-            )
-            col_ouvrir, col_suppr = st.columns(2)
-            col_ouvrir.button("Ouvrir", key="btn_ouvrir", on_click=ouvrir_conversation)
-            col_suppr.button("Supprimer", key="btn_supprimer", on_click=supprimer_conversation_choisie)
-        else:
-            st.caption("Aucune conversation enregistrée pour le moment.")
+    st.markdown('<div class="section-titre">Discuter avec l\'assistant</div>', unsafe_allow_html=True)
 
     chat_box = st.container(key="chatpanel")
     with chat_box:
@@ -641,10 +670,9 @@ if question:
             "duree": duree,
         })
 
-    # Le courrier est dans la colonne de droite, déjà dessinée : on relance
-    # la page pour qu'il apparaisse tout de suite dans la zone de texte.
-    if demande_detectee:
-        st.rerun()
+    # On relance la page : le courrier apparaît dans la colonne de droite et la
+    # conversation s'affiche tout de suite dans l'historique de la barre latérale.
+    st.rerun()
 
 st.markdown(
     '<div class="pied">Règlement et calendrier fictifs, à usage pédagogique. '
