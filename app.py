@@ -144,9 +144,23 @@ st.markdown("""
 
 html, body, [class*="css"], .stApp { font-family: 'DM Sans', sans-serif; color: var(--texte); }
 .stApp { background: var(--fond); }
-header[data-testid="stHeader"] { background: transparent; }
-[data-testid="stToolbar"], [data-testid="stDecoration"], footer { display: none; }
-.block-container { padding-top: 2.4rem; padding-bottom: 6rem; padding-left: 2.2rem; padding-right: 2.2rem; max-width: 100%; }
+header[data-testid="stHeader"] { background: transparent; z-index: 999; }
+
+/* On masque seulement ce qui est inutile, pas le bouton de la barre latérale */
+[data-testid="stToolbarActions"], [data-testid="stMainMenu"],
+[data-testid="stAppDeployButton"], [data-testid="stStatusWidget"],
+[data-testid="stDecoration"], footer { display: none !important; }
+
+/* Double flèche toujours visible : fermer (dans la barre) et rouvrir (quand elle est fermée) */
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="stExpandSidebarButton"],
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"] {
+    visibility: visible !important; opacity: 1 !important; display: flex !important;
+}
+
+.block-container { padding-top: 2.4rem; padding-bottom: 2rem; padding-left: 2.2rem; padding-right: 2.2rem; max-width: 100%; }
 div[data-testid="stButton"] { width: 100%; }
 h1, h2, h3, .titre { font-family: 'Bricolage Grotesque', sans-serif; }
 
@@ -232,7 +246,7 @@ html { scroll-behavior: smooth; }
 }
 [data-testid="stChatMessage"] { background: var(--fond); border-radius: 20px; padding: 0.9rem 1rem; border: none; }
 /* Champ de saisie : un seul contour (le conteneur externe n'a plus de bordure) */
-[data-testid="stChatInput"] { border: none !important; background: transparent !important; box-shadow: none !important; padding: 0 !important; }
+[data-testid="stChatInput"] { border: none !important; background: transparent !important; box-shadow: none !important; padding: 0 !important; margin-top: 0.8rem; }
 [data-testid="stChatInput"] > div {
     border: 2px solid var(--nuit) !important; border-radius: 999px !important;
     background: #fff !important; box-shadow: none !important; padding-left: 0.6rem;
@@ -553,10 +567,11 @@ with col_chat:
                     if item.get("duree"):
                         st.caption(f"Réponse en {item['duree']:.1f} s")
 
-question_saisie = st.chat_input(
-    "Écrivez votre question (ex : j'étais malade le jour de l'examen de réseaux)",
-    max_chars=MAX_QUESTION,
-)
+    # La barre de saisie est dans la colonne de chat : elle ne prend plus tout l'écran
+    question_saisie = st.chat_input(
+        "Écrivez votre question (ex : j'étais malade le jour de l'examen de réseaux)",
+        max_chars=MAX_QUESTION,
+    )
 
 with col_side:
     slot_etapes = st.empty()  # rempli plus bas, une fois l'état du courrier connu
